@@ -331,7 +331,35 @@ module JetSpider
     end
 
     def visit_PostfixNode(n)
-      raise "PostfixNode not implemented"
+      if n.value == "++"
+        var = n.operand.variable
+        case
+        when var.parameter?
+          @asm.getarg var.index
+          @asm.getarg var.index
+          @asm.one
+          @asm.add
+          @asm.setarg var.index
+          @asm.pop
+        when var.local?
+          @asm.getlocal var.index
+          @asm.getlocal var.index
+          @asm.one
+          @asm.add
+          @asm.setlocal var.index
+          @asm.pop
+        when var.global?
+          #@asm.getgname var.name
+          @asm.bindgname var.name
+          @asm.getgname var.name
+          @asm.one
+          @asm.add
+          @asm.setgname var.name
+          @asm.pop
+        else
+          raise "[FATAL] unsupported variable type for dereference: #{var.inspect}"
+        end
+      end
     end
 
     def visit_BitwiseNotNode(n) raise "BitwiseNotNode not implemented"; end
