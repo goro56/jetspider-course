@@ -101,7 +101,7 @@ module JetSpider
 
     def visit_ReturnNode(n)
       visit n.value
-      @asm.popv
+      @asm.return
     end
 
     # These nodes should not be visited directly
@@ -221,9 +221,34 @@ module JetSpider
     end
 
     def visit_AddNode(n)
-      visit n.left
-      visit n.value
-      @asm.add
+      opt_result = opt_AddNode(n)
+      if opt_result.nil?
+        visit n.left
+        visit n.value
+        @asm.add
+      else
+        @asm.int8 opt_result
+      end
+    end
+
+    def opt_AddNode(n)
+      if n.left.is_a?(RKelly::Nodes::AddNode)
+        left = opt_AddNode(n.left)
+      elsif n.left.is_a?(RKelly::Nodes::NumberNode)
+        left = n.left.value
+      else
+        return nil
+      end
+
+      if n.value.is_a?(RKelly::Nodes::AddNode)
+        value = opt_AddNode(n.value)
+      elsif n.value.is_a?(RKelly::Nodes::NumberNode)
+        value = n.value.value
+      else
+        return nil
+      end
+
+      left + value
     end
 
     def visit_SubtractNode(n)
@@ -333,7 +358,11 @@ module JetSpider
     end
 
     def visit_NumberNode(n)
-      @asm.int8 n.value
+      if n.value == 1
+        @asm.one
+      else
+        @asm.int8 n.value
+      end
     end
 
     def visit_StringNode(n)
