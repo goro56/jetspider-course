@@ -360,13 +360,17 @@ module JetSpider
     def visit_NumberNode(n)
       if n.value == 1
         @asm.one
-      else
+      elsif -128 <= n.value && n.value <= 127
         @asm.int8 n.value
+      elsif -32768 <= n.value && n.value <= 32767
+        @asm.int16 n.value
+      else
+        @asm.int32 n.value
       end
     end
 
     def visit_StringNode(n)
-      raise NotImplementedError, 'StringNode'
+      @asm.string eval(n.value)
     end
 
     def visit_ArrayNode(n) raise "ArrayNode not implemented"; end
