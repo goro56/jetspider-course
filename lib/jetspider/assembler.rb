@@ -110,6 +110,10 @@ module JetSpider
       put_relative_jump 'ifeq', target
     end
 
+    def ifne(target)
+      put_relative_jump 'ifne', target
+    end
+
     def goto(target)
       put_relative_jump 'goto', target
     end

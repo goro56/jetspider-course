@@ -6,6 +6,9 @@ module JetSpider
     def initialize(object_file)
       @object_file = object_file
       @asm = nil
+
+      @locs_continue = []
+      @locs_break = []
     end
 
     def generate_object_file(ast)
@@ -117,9 +120,9 @@ module JetSpider
       var = n.variable
       case
       when var.parameter?
-        @asm.getarg n.variable.index
+        @asm.getarg var.index
       when var.local?
-        raise NotImplementedError, 'ResolveNode - local'
+        @asm.getlocal var.index
       when var.global?
         @asm.getgname var.name
       else
@@ -128,19 +131,44 @@ module JetSpider
     end
 
     def visit_OpEqualNode(n)
-      raise NotImplementedError, 'OpEqualNode'
+      var = n.left.variable
+      case
+      when var.parameter?
+        visit n.value
+        @asm.setarg var.index
+      when var.local?
+        visit n.value
+        @asm.setlocal var.index
+      when var.global?
+        @asm.bindgname var.name
+        visit n.value
+        @asm.setgname var.name
+      else
+        raise "[FATAL] unsupported variable type for dereference: #{var.inspect}"
+      end
     end
 
     def visit_VarStatementNode(n)
-      raise NotImplementedError, 'VarStatementNode'
+      n.value.each do |var_decl|
+        visit var_decl
+      end
     end
 
     def visit_VarDeclNode(n)
-      raise NotImplementedError, 'VarDeclNode'
+      var = n.variable
+      case
+      when var.local?
+        visit n.value
+        @asm.setlocal var.index
+      when var.global?
+        @asm.bindgname var.name
+        visit n.value
+        @asm.setgname var.name
+      end
     end
 
     def visit_AssignExprNode(n)
-      raise NotImplementedError, 'AssignExprNode'
+      visit n.value
     end
 
     # We do not support let, const, with
@@ -181,7 +209,26 @@ module JetSpider
     end
 
     def visit_WhileNode(n)
-      raise NotImplementedError, 'WhileNode'
+      loc_continue = @asm.lazy_location
+      @locs_continue.push(loc_continue)
+
+      loc_break = @asm.lazy_location
+      @locs_break.push(loc_break)
+
+      loc_cond = @asm.lazy_location
+      loc_start = @asm.lazy_location
+
+      @asm.fix_location(loc_continue)
+      @asm.goto loc_cond
+      @asm.fix_location(loc_start)
+      visit n.value
+      @asm.fix_location(loc_cond)
+      visit n.left
+      @asm.ifne loc_start
+      @asm.fix_location(loc_break)
+
+      @locs_continue.pop
+      @locs_break.pop
     end
 
     def visit_DoWhileNode(n)
@@ -193,11 +240,11 @@ module JetSpider
     end
 
     def visit_BreakNode(n)
-      raise NotImplementedError, 'BreakNode'
+      @asm.goto @locs_break.last
     end
 
     def visit_ContinueNode(n)
-      raise NotImplementedError, 'ContinueNode'
+      @asm.goto @locs_continue.last
     end
 
     def visit_SwitchNode(n) raise "SwitchNode not implemented"; end
@@ -248,7 +295,9 @@ module JetSpider
         return nil
       end
 
-      left + value
+      unless left.nil? || value.nil?
+        left + value
+      end
     end
 
     def visit_SubtractNode(n)
